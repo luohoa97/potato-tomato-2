@@ -4,23 +4,44 @@
 	import * as Card from '$lib/components/ui/card';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import * as Select from '$lib/components/ui/select';
+	import Fuse from 'fuse.js';
 
 	let games: GameMetadata[] = $state([]);
 	let loading = $state(true);
 	let searchQuery = $state('');
 	let selectedCategory = $state('all');
+	let fuse: Fuse<GameMetadata> | null = null;
 
 	onMount(async () => {
 		games = await loadAllGames();
+		
+		// Initialize Fuse.js for fuzzy search
+		fuse = new Fuse(games, {
+			keys: ['name', 'description', 'author', 'category'],
+			threshold: 0.3, // Lower = more strict, higher = more fuzzy
+			includeScore: true,
+			minMatchCharLength: 2
+		});
+		
 		loading = false;
 	});
 
-	let filteredGames = $derived(games.filter(game => {
-		const matchesSearch = game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-							 game.description.toLowerCase().includes(searchQuery.toLowerCase());
-		const matchesCategory = selectedCategory === 'all' || game.category === selectedCategory;
-		return matchesSearch && matchesCategory;
-	}));
+	let filteredGames = $derived.by(() => {
+		let results = games;
+
+		// Apply fuzzy search if query exists
+		if (searchQuery.trim() && fuse) {
+			const searchResults = fuse.search(searchQuery);
+			results = searchResults.map(result => result.item);
+		}
+
+		// Apply category filter
+		if (selectedCategory !== 'all') {
+			results = results.filter(game => game.category === selectedCategory);
+		}
+
+		return results;
+	});
 
 	let categories = $derived(['all', ...new Set(games.map(g => g.category))]);
 </script>

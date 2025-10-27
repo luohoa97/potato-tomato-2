@@ -181,14 +181,9 @@ async function portGame(filename, htmlContent, downloadThumbnails = true) {
 }
 
 function updateGamesTs(gameIds) {
-    const gamesPath = join(__dirname, '..', 'src', 'lib', 'utils', 'games.ts');
-    let content = readFileSync(gamesPath, 'utf-8');
-
-    const newGameIds = `const GAME_IDS = [${gameIds.map((id) => `'${id}'`).join(', ')}];`;
-    content = content.replace(/const GAME_IDS = \[.*?\];/s, newGameIds);
-
-    writeFileSync(gamesPath, content);
-    console.log('\n✅ Updated src/lib/utils/games.ts');
+    console.log(`\n✅ Ported ${gameIds.length} games`);
+    console.log('💡 Games are automatically discovered from /static/games/html/');
+    console.log('   No need to manually update games.ts!');
 }
 
 async function downloadThumbnailsOnly() {
