@@ -49,6 +49,8 @@ jobs:
         run: pnpm install
 
       - name: Build
+        env:
+          NODE_ENV: production
         run: pnpm build
 
       - name: Upload artifact
