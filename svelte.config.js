@@ -12,7 +12,7 @@ const config = {
 			strict: false
 		}),
 		paths: {
-			base: process.env.NODE_ENV === 'production' ? '/potato-tomato-2' : ''
+			base: process.argv.includes('dev') ? '' : '/potato-tomato-2'
 		}
 	}
 };

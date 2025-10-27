@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import { loadAllGames, type GameMetadata } from '$lib/utils/games';
 	import * as Card from '$lib/components/ui/card';
 	import Input from '$lib/components/ui/input/input.svelte';
@@ -10,6 +11,7 @@
 	let loading = $state(true);
 	let searchQuery = $state('');
 	let selectedCategory = $state('all');
+	let selectedValue = $state({ value: 'all', label: 'All Categories' });
 	let fuse: Fuse<GameMetadata> | null = null;
 
 	onMount(async () => {
@@ -61,8 +63,12 @@
 		/>
 		
 		<Select.Root
+			selected={selectedValue}
 			onSelectedChange={(v) => {
-				selectedCategory = v?.value || 'all';
+				if (v) {
+					selectedValue = v;
+					selectedCategory = v.value;
+				}
 			}}
 		>
 			<Select.Trigger class="w-full sm:w-48">
@@ -70,7 +76,7 @@
 			</Select.Trigger>
 			<Select.Content>
 				{#each categories as category}
-					<Select.Item value={category}>
+					<Select.Item value={category} label={category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}>
 						{category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}
 					</Select.Item>
 				{/each}
@@ -95,7 +101,7 @@
 					<Card.Root class="overflow-hidden transition-all hover:shadow-lg hover:scale-105">
 						<div class="aspect-square overflow-hidden bg-muted">
 							<img 
-								src={game.thumbnail} 
+								src={game.thumbnail.startsWith('/') ? `${base}${game.thumbnail}` : game.thumbnail} 
 								alt={game.name}
 								class="h-full w-full object-cover transition-transform group-hover:scale-110"
 								onerror={(e) => {

@@ -1,3 +1,5 @@
+import { base } from '$app/paths';
+
 export interface GameMetadata {
   id: string;
   name: string;
@@ -16,7 +18,7 @@ async function fetchGameList(): Promise<string[]> {
   }
 
   try {
-    const response = await fetch('/games/games-list.json');
+    const response = await fetch(`${base}/games/games-list.json`);
     if (response.ok) {
       gameListCache = await response.json();
       return gameListCache;
@@ -33,12 +35,11 @@ export async function loadAllGames(): Promise<GameMetadata[]> {
   }
 
   const gameIds = await fetchGameList();
-  const games: GameMetadata[] = [];
 
   // Load all metadata files in parallel for speed
   const metadataPromises = gameIds.map(async (id) => {
     try {
-      const response = await fetch(`/games/html/${id}/metadata.json`);
+      const response = await fetch(`${base}/games/html/${id}/metadata.json`);
       if (response.ok) {
         return await response.json();
       }
@@ -56,7 +57,7 @@ export async function loadAllGames(): Promise<GameMetadata[]> {
 
 export async function loadGameMetadata(id: string): Promise<GameMetadata | null> {
   try {
-    const response = await fetch(`/games/html/${id}/metadata.json`);
+    const response = await fetch(`${base}/games/html/${id}/metadata.json`);
     if (response.ok) {
       return await response.json();
     }

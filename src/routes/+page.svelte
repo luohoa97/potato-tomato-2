@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import { loadAllGames, type GameMetadata } from '$lib/utils/games';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -44,7 +45,7 @@
 						<Card.Root class="overflow-hidden transition-all hover:shadow-lg hover:scale-105">
 							<div class="aspect-square overflow-hidden bg-muted">
 								<img 
-									src={game.thumbnail} 
+									src={game.thumbnail.startsWith('/') ? `${base}${game.thumbnail}` : game.thumbnail} 
 									alt={game.name}
 									class="h-full w-full object-cover transition-transform group-hover:scale-110"
 									onerror={(e) => {

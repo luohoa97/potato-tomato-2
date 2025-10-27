@@ -3,7 +3,8 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Sheet from '$lib/components/ui/sheet';
 	import * as NavigationMenu from '$lib/components/ui/navigation-menu';
-	import { Menu } from 'lucide-svelte';
+	import { Menu, Sun, Moon } from 'lucide-svelte';
+	import { toggleMode } from 'mode-watcher';
 
 	let isOpen = $state(false);
 
@@ -18,7 +19,7 @@
 </script>
 
 <nav class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-	<div class="container flex h-16 items-center px-4">
+	<div class="container mx-auto flex h-16 items-center px-4">
 		<!-- Logo -->
 		<a href="/" class="flex items-center space-x-2 flex-shrink-0">
 			<span class="text-2xl">🥔🍅</span>
@@ -63,19 +64,27 @@
 
 		<!-- Desktop Actions -->
 		<div class="hidden lg:flex items-center space-x-3 flex-shrink-0">
+			<Button onclick={toggleMode} variant="outline" size="icon">
+				<Sun class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+				<Moon class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+				<span class="sr-only">Toggle theme</span>
+			</Button>
 			<Button href="/games" variant={$page.url.pathname.startsWith('/games') ? 'default' : 'outline'}>
 				Play Now
 			</Button>
 		</div>
 
 		<!-- Mobile Menu Button -->
-		<div class="lg:hidden ml-auto">
+		<div class="lg:hidden ml-auto flex items-center space-x-2">
+			<Button onclick={toggleMode} variant="outline" size="icon">
+				<Sun class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+				<Moon class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+				<span class="sr-only">Toggle theme</span>
+			</Button>
 			<Sheet.Root bind:open={isOpen}>
-				<Sheet.Trigger asChild let:builder>
-					<Button builders={[builder]} variant="ghost" size="icon">
-						<Menu class="h-5 w-5" />
-						<span class="sr-only">Toggle menu</span>
-					</Button>
+				<Sheet.Trigger class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 w-10">
+					<Menu class="h-5 w-5" />
+					<span class="sr-only">Toggle menu</span>
 				</Sheet.Trigger>
 				<Sheet.Content side="right" class="w-[300px] sm:w-[400px]">
 					<div class="flex flex-col space-y-6 mt-8">
