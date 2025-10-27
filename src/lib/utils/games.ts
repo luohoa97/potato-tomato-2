@@ -7,42 +7,23 @@ export interface GameMetadata {
 	category: string;
 }
 
-let cachedGameList: string[] | null = null;
+let cachedGames: GameMetadata[] | null = null;
 
-async function fetchGameList(): Promise<string[]> {
-	if (cachedGameList) {
-		return cachedGameList;
+export async function loadAllGames(): Promise<GameMetadata[]> {
+	if (cachedGames) {
+		return cachedGames;
 	}
 
 	try {
-		const response = await fetch('/api/games');
+		const response = await fetch('/api/games/metadata');
 		if (response.ok) {
-			cachedGameList = await response.json();
-			return cachedGameList;
+			cachedGames = await response.json();
+			return cachedGames;
 		}
 	} catch (error) {
-		console.error('Failed to fetch game list:', error);
+		console.error('Failed to fetch games metadata:', error);
 	}
 	return [];
-}
-
-export async function loadAllGames(): Promise<GameMetadata[]> {
-	const gameIds = await fetchGameList();
-	const games: GameMetadata[] = [];
-
-	for (const id of gameIds) {
-		try {
-			const response = await fetch(`/games/html/${id}/metadata.json`);
-			if (response.ok) {
-				const metadata = await response.json();
-				games.push(metadata);
-			}
-		} catch (error) {
-			console.error(`Failed to load metadata for ${id}:`, error);
-		}
-	}
-
-	return games;
 }
 
 export async function loadGameMetadata(id: string): Promise<GameMetadata | null> {
