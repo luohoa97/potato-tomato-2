@@ -1,32 +1,98 @@
 # Game Porting Tools
 
-## 1. Port Games (`port-game.js`)
+## Quick Start - Port Everything!
+
+```bash
+# Port games from ALL open-source platforms at once
+node scripts/port-all-opensource.js
+
+# Then update the games list
+node scripts/generate-games-list.js
+```
+
+---
+
+## Open Source Game Porters
+
+### 1. GitHub Games (`port-github-games.js`)
+
+Port individual open-source HTML5 games from GitHub repositories. Downloads full source code for offline play.
+
+```bash
+node scripts/port-github-games.js
+```
+
+**Sources:** 2048, Tetris, Flappy Bird, Duck Hunt, A Dark Room, Hextris, and more!
+
+### 2. js13kGames (`port-js13k-games.js`)
+
+Port ultra-small (13KB) JavaScript games from the js13kGames competition.
+
+```bash
+node scripts/port-js13k-games.js
+```
+
+**Sources:** Award-winning games from js13kGames annual competition
+
+### 3. itch.io Games (`port-itch-games.js`)
+
+Port free HTML5 games from itch.io indie game platform.
+
+```bash
+node scripts/port-itch-games.js
+```
+
+**Sources:** Nicky Case games, educational games, indie experiments
+
+### 4. Phaser Examples (`port-phaser-examples.js`)
+
+Port complete game examples from the Phaser game framework.
+
+```bash
+node scripts/port-phaser-examples.js
+```
+
+**Sources:** Official Phaser 3 example games (Breakout, Space Invaders, Snake, etc.)
+
+### 5. PlayCanvas Games (`port-playcanvas-games.js`)
+
+Port 3D WebGL games from PlayCanvas engine.
+
+```bash
+node scripts/port-playcanvas-games.js
+```
+
+**Sources:** Public PlayCanvas projects (Swooop, Master Archer, etc.)
+
+### 6. 3kh0 Games (`port-3kh0-games.js`)
+
+Port games from the 3kh0 unblocked games repository.
+
+```bash
+node scripts/port-3kh0-games.js
+```
+
+### 7. Poki Games (`port-poki-games.js`)
+
+Port games from Poki platform by game slug.
+
+```bash
+node scripts/port-poki-games.js subway-surfers stickman-hook
+```
+
+---
+
+## Legacy Tools
+
+### Port Games (`port-game.js`)
 
 Port games from tag2game.github.io with automatic thumbnail downloads.
 
-### Usage
-
 ```bash
-# Port all games from GitHub (with thumbnails)
 node scripts/port-game.js
-
-# Port without downloading thumbnails (faster)
 node scripts/port-game.js --no-thumbnails
-
-# Download thumbnails for already ported games
-node scripts/port-game.js --thumbnails-only
-
-# Port specific local files
-node scripts/port-game.js --local path/to/slope.html
+node scripts/port-game.js --local path/to/game.html
 ```
-
-### What it does
-
-- Fetches games from GitHub or reads local HTML files
-- Extracts iframe URLs, titles, and thumbnails
-- Creates game folders with index.html and metadata.json
-- Downloads thumbnails automatically
-- Updates `src/lib/utils/games.ts`
 
 ---
 

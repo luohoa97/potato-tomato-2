@@ -10,49 +10,23 @@ export interface GameMetadata {
 }
 
 let cachedGames: GameMetadata[] | null = null;
-let gameListCache: string[] | null = null;
-
-async function fetchGameList(): Promise<string[]> {
-  if (gameListCache) {
-    return gameListCache;
-  }
-
-  try {
-    const response = await fetch(`${base}/games/games-list.json`);
-    if (response.ok) {
-      gameListCache = await response.json();
-      return gameListCache;
-    }
-  } catch (error) {
-    console.error('Failed to fetch game list:', error);
-  }
-  return [];
-}
 
 export async function loadAllGames(): Promise<GameMetadata[]> {
   if (cachedGames) {
     return cachedGames;
   }
 
-  const gameIds = await fetchGameList();
-
-  // Load all metadata files in parallel for speed
-  const metadataPromises = gameIds.map(async (id) => {
-    try {
-      const response = await fetch(`${base}/games/html/${id}/metadata.json`);
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch (error) {
-      console.error(`Failed to load metadata for ${id}:`, error);
+  try {
+    const response = await fetch(`${base}/games/games-metadata.json`);
+    if (response.ok) {
+      cachedGames = await response.json();
+      return cachedGames;
     }
-    return null;
-  });
-
-  const results = await Promise.all(metadataPromises);
-  cachedGames = results.filter((game) => game !== null) as GameMetadata[];
-
-  return cachedGames;
+  } catch (error) {
+    console.error('Failed to load games metadata:', error);
+  }
+  
+  return [];
 }
 
 export async function loadGameMetadata(id: string): Promise<GameMetadata | null> {

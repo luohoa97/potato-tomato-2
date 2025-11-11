@@ -1,51 +1,170 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { loadAllGames, type GameMetadata } from '$lib/utils/games';
+	import { getPreferences } from '$lib/utils/preferences';
 	import * as Card from '$lib/components/ui/card';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import * as Select from '$lib/components/ui/select';
+	import Button from '$lib/components/ui/button/button.svelte';
+	import { Heart, ArrowUpDown } from 'lucide-svelte';
 	import Fuse from 'fuse.js';
+	import { likeGame, removePreference, getGamePreference } from '$lib/utils/preferences';
 
 	let games: GameMetadata[] = $state([]);
 	let loading = $state(true);
 	let searchQuery = $state('');
 	let selectedCategory = $state('all');
-	let selectedValue = $state({ value: 'all', label: 'All Categories' });
+	let sortBy = $state('name'); // name, author, category
+	let sortReversed = $state(false);
+	let showFavouritesOnly = $state(false);
 	let fuse: Fuse<GameMetadata> | null = null;
+	let favouriteIds = $state<Set<string>>(new Set());
+	
+	function toggleFavourite(gameId: string, event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		
+		if (favouriteIds.has(gameId)) {
+			removePreference(gameId);
+			favouriteIds.delete(gameId);
+		} else {
+			likeGame(gameId);
+			favouriteIds.add(gameId);
+		}
+		favouriteIds = new Set(favouriteIds); // Trigger reactivity
+	}
+	
+	// Pagination - load one row at a time (4 games on desktop)
+	const GAMES_PER_ROW = 4;
+	const INITIAL_ROWS = 6; // Start with 6 rows (24 games)
+	let displayedCount = $state(INITIAL_ROWS * GAMES_PER_ROW);
+	let loadMoreTrigger = $state<HTMLDivElement | undefined>(undefined);
+	let observer: IntersectionObserver | undefined;
+
+	// Derived values for Select components
+	let selectedCategoryValue = $derived({
+		value: selectedCategory,
+		label: selectedCategory === 'all' ? 'All Categories' : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)
+	});
+
+	let selectedSortValue = $derived({
+		value: sortBy,
+		label: sortBy === 'name' ? 'Name' : sortBy === 'author' ? 'Author' : 'Category'
+	});
+	
+	function toggleSortDirection() {
+		sortReversed = !sortReversed;
+	}
 
 	onMount(async () => {
+		// Read URL params first
+		const params = $page.url.searchParams;
+		searchQuery = params.get('q') || '';
+		selectedCategory = params.get('category') || 'all';
+		sortBy = params.get('sortBy') || 'name';
+		sortReversed = params.get('reversed') === '1';
+		
 		games = await loadAllGames();
+		
+		// Load favourites
+		const prefs = getPreferences();
+		favouriteIds = new Set(prefs.liked);
 		
 		// Initialize Fuse.js for fuzzy search
 		fuse = new Fuse(games, {
 			keys: ['name', 'description', 'author', 'category'],
-			threshold: 0.3, // Lower = more strict, higher = more fuzzy
+			threshold: 0.3,
 			includeScore: true,
 			minMatchCharLength: 2
 		});
 		
 		loading = false;
+		
+		return () => {
+			if (observer) observer.disconnect();
+		};
+	});
+	
+	// Setup intersection observer for progressive row loading
+	$effect(() => {
+		if (!observer) {
+			observer = new IntersectionObserver((entries) => {
+				if (entries[0].isIntersecting && displayedCount < filteredGames.length) {
+					// Load one row at a time for progressive display
+					displayedCount = Math.min(displayedCount + GAMES_PER_ROW, filteredGames.length);
+				}
+			}, { 
+				rootMargin: '600px', // Load 600px before reaching the trigger
+				threshold: 0
+			});
+		}
+		
+		if (loadMoreTrigger && observer) {
+			observer.observe(loadMoreTrigger);
+		}
+	});
+	
+	// Reset displayed count when filters change
+	$effect(() => {
+		// Watch for filter changes
+		searchQuery;
+		selectedCategory;
+		sortBy;
+		sortReversed;
+		showFavouritesOnly;
+		displayedCount = INITIAL_ROWS * GAMES_PER_ROW;
 	});
 
 	let filteredGames = $derived.by(() => {
 		let results = games;
 
+		// Apply favourites filter first
+		if (showFavouritesOnly) {
+			results = results.filter(game => favouriteIds.has(game.id));
+		}
+
 		// Apply fuzzy search if query exists
 		if (searchQuery.trim() && fuse) {
 			const searchResults = fuse.search(searchQuery);
-			results = searchResults.map(result => result.item);
+			const searchIds = new Set(searchResults.map(r => r.item.id));
+			results = results.filter(game => searchIds.has(game.id));
 		}
 
 		// Apply category filter
 		if (selectedCategory !== 'all') {
-			results = results.filter(game => game.category === selectedCategory);
+			results = results.filter(game => 
+				game.category?.toLowerCase() === selectedCategory.toLowerCase()
+			);
 		}
 
-		return results;
+		// Apply sorting
+		const sorted = [...results];
+		switch (sortBy) {
+			case 'name':
+				sorted.sort((a, b) => sortReversed ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
+				break;
+			case 'author':
+				sorted.sort((a, b) => sortReversed ? b.author.localeCompare(a.author) : a.author.localeCompare(b.author));
+				break;
+			case 'category':
+				sorted.sort((a, b) => {
+					const catA = a.category || '';
+					const catB = b.category || '';
+					return sortReversed ? catB.localeCompare(catA) : catA.localeCompare(catB);
+				});
+				break;
+		}
+
+		return sorted;
 	});
 
-	let categories = $derived(['all', ...new Set(games.map(g => g.category))]);
+	let categories = $derived(['all', ...new Set(games.map(g => g.category).filter(Boolean))]);
+	
+	let displayedGames = $derived(filteredGames.slice(0, displayedCount));
+	let hasMore = $derived(displayedCount < filteredGames.length);
 </script>
 
 <div class="container mx-auto px-4 py-12">
@@ -59,29 +178,68 @@
 			type="text"
 			placeholder="Search games..."
 			bind:value={searchQuery}
-			class="w-full sm:w-64"
+			class="w-full sm:flex-1"
 		/>
 		
+		<Button 
+			variant={showFavouritesOnly ? 'default' : 'outline'}
+			onclick={() => showFavouritesOnly = !showFavouritesOnly}
+			class="w-full sm:w-auto"
+		>
+			<Heart class="mr-2 h-4 w-4 {showFavouritesOnly ? 'fill-current' : ''}" />
+			{showFavouritesOnly ? 'Favourites' : 'Show Favourites'}
+		</Button>
+		
 		<Select.Root
-			selected={selectedValue}
+			type="single"
+			selected={selectedCategoryValue}
 			onSelectedChange={(v) => {
-				if (v) {
-					selectedValue = v;
+				if (v && v.value) {
 					selectedCategory = v.value;
 				}
 			}}
 		>
 			<Select.Trigger class="w-full sm:w-48">
-				<Select.Value placeholder="All Categories" />
+				{selectedCategoryValue.label}
 			</Select.Trigger>
 			<Select.Content>
 				{#each categories as category}
-					<Select.Item value={category} label={category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}>
+					<Select.Item value={category}>
 						{category === 'all' ? 'All Categories' : category.charAt(0).toUpperCase() + category.slice(1)}
 					</Select.Item>
 				{/each}
 			</Select.Content>
 		</Select.Root>
+
+		<div class="flex gap-2 w-full sm:w-auto">
+			<Select.Root
+				type="single"
+				selected={selectedSortValue}
+				onSelectedChange={(v) => {
+					if (v && v.value) {
+						sortBy = v.value;
+					}
+				}}
+			>
+				<Select.Trigger class="flex-1 sm:w-36">
+					{selectedSortValue.label}
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="name">Name</Select.Item>
+					<Select.Item value="author">Author</Select.Item>
+					<Select.Item value="category">Category</Select.Item>
+				</Select.Content>
+			</Select.Root>
+			
+			<Button 
+				variant="outline" 
+				size="icon"
+				onclick={toggleSortDirection}
+				title={sortReversed ? 'Sort descending' : 'Sort ascending'}
+			>
+				<ArrowUpDown class="h-4 w-4 {sortReversed ? 'rotate-180' : ''}" />
+			</Button>
+		</div>
 	</div>
 
 	{#if loading}
@@ -95,31 +253,53 @@
 			</p>
 		</div>
 	{:else}
+		<div class="mb-4 text-sm text-muted-foreground">
+			Showing {displayedGames.length} of {filteredGames.length} games
+		</div>
+		
 		<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-			{#each filteredGames as game}
-				<a href="/games/{game.id}" class="group block">
-					<Card.Root class="overflow-hidden transition-all hover:shadow-lg hover:scale-105">
-						<div class="aspect-square overflow-hidden bg-muted">
-							<img 
-								src={game.thumbnail.startsWith('/') ? `${base}${game.thumbnail}` : game.thumbnail} 
-								alt={game.name}
-								class="h-full w-full object-cover transition-transform group-hover:scale-110"
-								onerror={(e) => {
-									e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="256" height="256"%3E%3Crect fill="%23ddd" width="256" height="256"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="24" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
-								}}
-							/>
-						</div>
-						<Card.Header>
-							<Card.Title>{game.name}</Card.Title>
-							<Card.Description>{game.description}</Card.Description>
-						</Card.Header>
-						<Card.Footer class="flex justify-between text-xs text-muted-foreground">
-							<span>By {game.author}</span>
-							<span class="px-2 py-1 rounded-full bg-primary/10 text-primary">{game.category}</span>
-						</Card.Footer>
-					</Card.Root>
-				</a>
+			{#each displayedGames as game (game.id)}
+				<div class="group block relative">
+					<a 
+						href="/games/{game.id}" 
+						data-sveltekit-preload-data="hover"
+						class="block"
+					>
+						<Card.Root class="overflow-hidden transition-all hover:shadow-lg hover:scale-105">
+							<div class="aspect-square overflow-hidden bg-muted relative">
+								<img 
+									src={game.thumbnail.startsWith('/') ? `${base}${game.thumbnail}` : game.thumbnail} 
+									alt={game.name}
+									loading="lazy"
+									class="h-full w-full object-cover transition-transform group-hover:scale-110"
+									onerror={(e) => {
+										e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="256" height="256"%3E%3Crect fill="%23ddd" width="256" height="256"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="24" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3ENo Image%3C/text%3E%3C/svg%3E';
+									}}
+								/>
+								<button
+									onclick={(e) => toggleFavourite(game.id, e)}
+									class="absolute top-2 right-2 p-2 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background transition-colors z-10"
+									title={favouriteIds.has(game.id) ? 'Remove from favourites' : 'Add to favourites'}
+								>
+									<Heart class="h-5 w-5 {favouriteIds.has(game.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}" />
+								</button>
+							</div>
+							<Card.Header>
+								<Card.Title>{game.name}</Card.Title>
+								<Card.Description>{game.description}</Card.Description>
+							</Card.Header>
+							<Card.Footer class="flex justify-between text-xs text-muted-foreground">
+								<span>By {game.author}</span>
+								<span class="px-2 py-1 rounded-full bg-primary/10 text-primary">{game.category}</span>
+							</Card.Footer>
+						</Card.Root>
+					</a>
+				</div>
 			{/each}
 		</div>
+		
+		{#if hasMore}
+			<div bind:this={loadMoreTrigger} class="py-12"></div>
+		{/if}
 	{/if}
 </div>

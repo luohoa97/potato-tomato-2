@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdirSync, existsSync, writeFileSync } from 'fs';
+import { readdirSync, existsSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -22,11 +22,30 @@ function generateGamesList() {
 			return existsSync(metadataPath);
 		});
 
-	const outputPath = join(__dirname, '..', 'static', 'games', 'games-list.json');
-	writeFileSync(outputPath, JSON.stringify(gameIds, null, 2));
+	// Generate games list
+	const listOutputPath = join(__dirname, '..', 'static', 'games', 'games-list.json');
+	writeFileSync(listOutputPath, JSON.stringify(gameIds, null, 2));
 
 	console.log(`✅ Generated games list with ${gameIds.length} games`);
 	console.log(`   Saved to: static/games/games-list.json`);
+
+	// Generate consolidated metadata
+	const allMetadata = [];
+	for (const gameId of gameIds) {
+		const metadataPath = join(gamesDir, gameId, 'metadata.json');
+		try {
+			const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
+			allMetadata.push(metadata);
+		} catch (error) {
+			console.error(`❌ Failed to read metadata for ${gameId}:`, error.message);
+		}
+	}
+
+	const metadataOutputPath = join(__dirname, '..', 'static', 'games', 'games-metadata.json');
+	writeFileSync(metadataOutputPath, JSON.stringify(allMetadata, null, 2));
+
+	console.log(`✅ Generated consolidated metadata with ${allMetadata.length} games`);
+	console.log(`   Saved to: static/games/games-metadata.json`);
 }
 
 generateGamesList();

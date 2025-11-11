@@ -3,9 +3,10 @@
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { loadGameMetadata, loadAllGames, type GameMetadata } from '$lib/utils/games';
+	import { getPreferences, likeGame, dislikeGame, removePreference, getGamePreference } from '$lib/utils/preferences';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import { Maximize, ArrowLeft, X } from 'lucide-svelte';
+	import { Maximize, ArrowLeft, X, ThumbsUp, ThumbsDown } from 'lucide-svelte';
 	import Fuse from 'fuse.js';
 
 	let gameMetadata: GameMetadata | null = $state(null);
@@ -15,8 +16,24 @@
 	let iframeElement: HTMLIFrameElement;
 	let showFedoraBanner = $state(false);
 	let bannerDismissed = $state(false);
+	let userPreference = $state<'liked' | 'disliked' | null>(null);
 
 	let gameId = $derived($page.params.gameId);
+	
+	function handleLike() {
+		likeGame(gameId);
+		userPreference = 'liked';
+	}
+	
+	function handleDislike() {
+		dislikeGame(gameId);
+		userPreference = 'disliked';
+	}
+	
+	function handleRemovePreference() {
+		removePreference(gameId);
+		userPreference = null;
+	}
 
 	function detectFedora(): boolean {
 		if (typeof navigator === 'undefined') return false;
@@ -43,16 +60,32 @@
 			error = 'Game not found';
 		}
 		
+		// Load user preference for this game
+		userPreference = getGamePreference(gameId);
+		
 		const allGames = await loadAllGames();
+		const prefs = getPreferences();
 		
 		// Use fuzzy search to find similar games
 		if (gameMetadata) {
+			// Get liked games to understand user preferences
+			const likedGames = allGames.filter(g => prefs.liked.includes(g.id));
+			const dislikedGames = allGames.filter(g => prefs.disliked.includes(g.id));
+			
+			// Build search query based on current game and user preferences
+			let searchKeys: any[] = [
+				{ name: 'category', weight: 0.4 },
+				{ name: 'name', weight: 0.3 },
+				{ name: 'description', weight: 0.2 }
+			];
+			
+			// If user has liked games, boost author matching
+			if (likedGames.length > 0) {
+				searchKeys.push({ name: 'author', weight: 0.1 });
+			}
+			
 			const fuse = new Fuse(allGames, {
-				keys: [
-					{ name: 'category', weight: 0.5 },
-					{ name: 'name', weight: 0.3 },
-					{ name: 'description', weight: 0.2 }
-				],
+				keys: searchKeys,
 				threshold: 0.4,
 				includeScore: true
 			});
@@ -61,17 +94,45 @@
 			const searchQuery = `${gameMetadata.category} ${gameMetadata.name}`;
 			const results = fuse.search(searchQuery);
 			
-			// Filter out the current game and take top 4
-			recommendedGames = results
-				.map(r => r.item)
-				.filter(g => g.id !== gameId)
-				.slice(0, 4);
+			// Filter and score recommendations
+			let scoredGames = results
+				.map(r => {
+					let score = 1 - (r.score || 0);
+					const game = r.item;
+					
+					// Boost games from same author as liked games
+					if (likedGames.some(lg => lg.author === game.author)) {
+						score += 0.3;
+					}
+					
+					// Boost games in same category as liked games
+					if (likedGames.some(lg => lg.category === game.category)) {
+						score += 0.2;
+					}
+					
+					// Penalize disliked games heavily
+					if (dislikedGames.some(dg => dg.id === game.id)) {
+						score -= 1.0;
+					}
+					
+					// Penalize games from authors of disliked games
+					if (dislikedGames.some(dg => dg.author === game.author)) {
+						score -= 0.2;
+					}
+					
+					return { game, score };
+				})
+				.filter(({ game }) => game.id !== gameId)
+				.sort((a, b) => b.score - a.score);
+			
+			recommendedGames = scoredGames.slice(0, 4).map(s => s.game);
 			
 			// If we don't have enough recommendations, fill with same category games
 			if (recommendedGames.length < 4) {
 				const sameCategoryGames = allGames
 					.filter(g => g.id !== gameId && g.category === gameMetadata.category)
 					.filter(g => !recommendedGames.find(r => r.id === g.id))
+					.filter(g => !prefs.disliked.includes(g.id))
 					.slice(0, 4 - recommendedGames.length);
 				recommendedGames = [...recommendedGames, ...sameCategoryGames];
 			}
@@ -116,9 +177,34 @@
 				</Button>
 			</a>
 			<div class="flex items-start justify-between">
-				<div>
+				<div class="flex-1">
 					<h1 class="text-3xl font-bold mb-2">{gameMetadata.name}</h1>
-					<p class="text-muted-foreground">By {gameMetadata.author}</p>
+					<p class="text-muted-foreground mb-3">By {gameMetadata.author}</p>
+					<div class="flex gap-2">
+						{#if userPreference === 'liked'}
+							<Button variant="default" size="sm" onclick={handleRemovePreference}>
+								<ThumbsUp class="mr-2 h-4 w-4 fill-current" />
+								Favourited
+							</Button>
+						{:else}
+							<Button variant="outline" size="sm" onclick={handleLike}>
+								<ThumbsUp class="mr-2 h-4 w-4" />
+								Favourite
+							</Button>
+						{/if}
+						
+						{#if userPreference === 'disliked'}
+							<Button variant="destructive" size="sm" onclick={handleRemovePreference}>
+								<ThumbsDown class="mr-2 h-4 w-4 fill-current" />
+								Disliked
+							</Button>
+						{:else}
+							<Button variant="outline" size="sm" onclick={handleDislike}>
+								<ThumbsDown class="mr-2 h-4 w-4" />
+								Dislike
+							</Button>
+						{/if}
+					</div>
 				</div>
 				<Button onclick={toggleFullscreen} variant="outline">
 					<Maximize class="mr-2 h-4 w-4" />
@@ -176,8 +262,8 @@
 			<section class="py-8">
 				<h2 class="text-2xl font-bold mb-6">Recommended Games</h2>
 				<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-					{#each recommendedGames as game}
-						<a href="/games/{game.id}" class="group block">
+					{#each recommendedGames as game (game.id)}
+						<a href="/games/{game.id}" data-sveltekit-preload-data="tap" class="group block">
 							<Card.Root class="overflow-hidden transition-all hover:shadow-lg hover:scale-105">
 								<div class="aspect-square overflow-hidden bg-muted">
 									<img 
@@ -193,6 +279,10 @@
 									<Card.Title class="text-base">{game.name}</Card.Title>
 									<Card.Description class="text-sm">{game.description}</Card.Description>
 								</Card.Header>
+								<Card.Footer class="flex justify-between text-xs text-muted-foreground">
+									<span>By {game.author}</span>
+									<span class="px-2 py-1 rounded-full bg-primary/10 text-primary">{game.category}</span>
+								</Card.Footer>
 							</Card.Root>
 						</a>
 					{/each}

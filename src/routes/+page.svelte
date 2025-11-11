@@ -41,7 +41,7 @@
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
 				{#each featuredGames.slice(0, 4) as game}
-					<a href="/games/{game.id}" class="group block">
+					<a href="/games/{game.id}" data-sveltekit-preload-data="hover" class="group block">
 						<Card.Root class="overflow-hidden transition-all hover:shadow-lg hover:scale-105">
 							<div class="aspect-square overflow-hidden bg-muted">
 								<img 
